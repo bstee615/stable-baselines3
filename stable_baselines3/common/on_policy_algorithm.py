@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional, Tuple, Type, Union
 import gym
 import numpy as np
 import torch as th
-
 from stable_baselines3.common import logger
 from stable_baselines3.common.base_class import BaseAlgorithm
 from stable_baselines3.common.buffers import RolloutBuffer
@@ -50,27 +49,27 @@ class OnPolicyAlgorithm(BaseAlgorithm):
     """
 
     def __init__(
-        self,
-        policy: Union[str, Type[ActorCriticPolicy]],
-        env: Union[GymEnv, str],
-        learning_rate: Union[float, Schedule],
-        n_steps: int,
-        gamma: float,
-        gae_lambda: float,
-        ent_coef: float,
-        vf_coef: float,
-        max_grad_norm: float,
-        use_sde: bool,
-        sde_sample_freq: int,
-        tensorboard_log: Optional[str] = None,
-        create_eval_env: bool = False,
-        monitor_wrapper: bool = True,
-        policy_kwargs: Optional[Dict[str, Any]] = None,
-        verbose: int = 0,
-        seed: Optional[int] = None,
-        device: Union[th.device, str] = "auto",
-        _init_setup_model: bool = True,
-        supported_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
+            self,
+            policy: Union[str, Type[ActorCriticPolicy]],
+            env: Union[GymEnv, str],
+            learning_rate: Union[float, Schedule],
+            n_steps: int,
+            gamma: float,
+            gae_lambda: float,
+            ent_coef: float,
+            vf_coef: float,
+            max_grad_norm: float,
+            use_sde: bool,
+            sde_sample_freq: int,
+            tensorboard_log: Optional[str] = None,
+            create_eval_env: bool = False,
+            monitor_wrapper: bool = True,
+            policy_kwargs: Optional[Dict[str, Any]] = None,
+            verbose: int = 0,
+            seed: Optional[int] = None,
+            device: Union[th.device, str] = "auto",
+            _init_setup_model: bool = True,
+            supported_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
     ):
 
         super(OnPolicyAlgorithm, self).__init__(
@@ -124,7 +123,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         self.policy = self.policy.to(self.device)
 
     def collect_rollouts(
-        self, env: VecEnv, callback: BaseCallback, rollout_buffer: RolloutBuffer, n_rollout_steps: int
+            self, env: VecEnv, callback: BaseCallback, rollout_buffer: RolloutBuffer, n_rollout_steps: int
     ) -> bool:
         """
         Collect experiences using the current policy and fill a ``RolloutBuffer``.
@@ -203,28 +202,30 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         raise NotImplementedError
 
     def learn(
-        self,
-        total_timesteps: int,
-        callback: MaybeCallback = None,
-        log_interval: int = 1,
-        eval_env: Optional[GymEnv] = None,
-        eval_freq: int = -1,
-        n_eval_episodes: int = 5,
-        tb_log_name: str = "OnPolicyAlgorithm",
-        eval_log_path: Optional[str] = None,
-        reset_num_timesteps: bool = True,
+            self,
+            total_timesteps: int,
+            callback: MaybeCallback = None,
+            log_interval: int = 1,
+            eval_env: Optional[GymEnv] = None,
+            eval_freq: int = -1,
+            n_eval_episodes: int = 5,
+            tb_log_name: str = "OnPolicyAlgorithm",
+            eval_log_path: Optional[str] = None,
+            reset_num_timesteps: bool = True,
     ) -> "OnPolicyAlgorithm":
         iteration = 0
 
         total_timesteps, callback = self._setup_learn(
-            total_timesteps, eval_env, callback, eval_freq, n_eval_episodes, eval_log_path, reset_num_timesteps, tb_log_name
+            total_timesteps, eval_env, callback, eval_freq, n_eval_episodes, eval_log_path, reset_num_timesteps,
+            tb_log_name
         )
 
         callback.on_training_start(locals(), globals())
 
         while self.num_timesteps < total_timesteps:
 
-            continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
+            continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer,
+                                                      n_rollout_steps=self.n_steps)
 
             if continue_training is False:
                 break
@@ -232,8 +233,9 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             iteration += 1
             self._update_current_progress_remaining(self.num_timesteps, total_timesteps)
 
+            should_log = log_interval is not None and iteration % log_interval == 0
             # Display training infos
-            if log_interval is not None and iteration % log_interval == 0:
+            if should_log:
                 fps = int(self.num_timesteps / (time.time() - self.start_time))
                 logger.record("time/iterations", iteration, exclude="tensorboard")
                 if len(self.ep_info_buffer) > 0 and len(self.ep_info_buffer[0]) > 0:
@@ -245,6 +247,9 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                 logger.dump(step=self.num_timesteps)
 
             self.train()
+
+            if should_log:
+                logger.dump(step=self.num_timesteps)
 
         callback.on_training_end()
 
