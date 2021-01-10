@@ -244,7 +244,6 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                 logger.record("time/fps", fps)
                 logger.record("time/time_elapsed", int(time.time() - self.start_time), exclude="tensorboard")
                 logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
-                logger.dump(step=self.num_timesteps)
 
             self.train()
 
