@@ -116,4 +116,12 @@ def evaluate_policy(
         assert mean_reward > reward_threshold, "Mean reward below threshold: " f"{mean_reward:.2f} < {reward_threshold:.2f}"
     if return_episode_rewards:
         return episode_rewards, episode_lengths
+
+    # Unwrap ndarray's that got in here somehow. TODO: Get at the root cause
+    if isinstance(mean_reward, (np.ndarray)):
+        mean_reward = mean_reward[0]
+    if isinstance(std_reward, (np.ndarray)):
+        std_reward = std_reward[0]
+    assert isinstance(mean_reward, np.float32)
+    assert isinstance(std_reward, np.float32)
     return mean_reward, std_reward
