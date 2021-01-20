@@ -3,21 +3,21 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import gym
 import numpy as np
-
 from stable_baselines3.common import base_class
 from stable_baselines3.common.vec_env import VecEnv
 
 
 def evaluate_policy(
-    model: "base_class.BaseAlgorithm",
-    env: Union[gym.Env, VecEnv],
-    n_eval_episodes: int = 10,
-    deterministic: bool = True,
-    render: bool = False,
-    callback: Optional[Callable[[Dict[str, Any], Dict[str, Any]], None]] = None,
-    reward_threshold: Optional[float] = None,
-    return_episode_rewards: bool = False,
-    warn: bool = True,
+        model: "base_class.BaseAlgorithm",
+        env: Union[gym.Env, VecEnv],
+        n_eval_episodes: int = 10,
+        deterministic: bool = True,
+        render: bool = False,
+        callback: Optional[Callable[[Dict[str, Any], Dict[str, Any]], None]] = None,
+        reward_threshold: Optional[float] = None,
+        return_episode_rewards: bool = False,
+        warn: bool = True,
+        max_episode_length: int = None,
 ) -> Union[Tuple[float, float], Tuple[List[float], List[int]]]:
     """
     Runs policy for ``n_eval_episodes`` episodes and returns average reward.
@@ -90,6 +90,8 @@ def evaluate_policy(
             episode_length += 1
             if render:
                 env.render()
+            if max_episode_length is not None and episode_length >= max_episode_length:
+                break
 
         if is_monitor_wrapped:
             # Do not trust "done" with episode endings.
@@ -101,6 +103,9 @@ def evaluate_policy(
                 # has been wrapped with it. Use those rewards instead.
                 episode_rewards.append(info["episode"]["r"])
                 episode_lengths.append(info["episode"]["l"])
+            else:
+                episode_rewards.append(episode_reward)
+                episode_lengths.append(episode_length)
         else:
             episode_rewards.append(episode_reward)
             episode_lengths.append(episode_length)
