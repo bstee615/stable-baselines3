@@ -1,3 +1,4 @@
+import time
 import warnings
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -18,6 +19,7 @@ def evaluate_policy(
         return_episode_rewards: bool = False,
         warn: bool = True,
         max_episode_length: int = None,
+        fps: int = None,
 ) -> Union[Tuple[float, float], Tuple[List[float], List[int]]]:
     """
     Runs policy for ``n_eval_episodes`` episodes and returns average reward.
@@ -90,6 +92,8 @@ def evaluate_policy(
             episode_length += 1
             if render:
                 env.render()
+            if fps is not None:
+                time.sleep(1 / fps)
             if max_episode_length is not None and episode_length >= max_episode_length:
                 break
 
@@ -122,6 +126,8 @@ def evaluate_policy(
         mean_reward = mean_reward[0]
     if isinstance(std_reward, (np.ndarray)):
         std_reward = std_reward[0]
-    assert isinstance(mean_reward, np.float32)
-    assert isinstance(std_reward, np.float32)
+    if not isinstance(mean_reward, np.float32):
+        print(f'warning: mean_reward is not a float ({mean_reward=})')
+    if not isinstance(std_reward, np.float32):
+        print(f'warning: std_reward is not a float ({std_reward=})')
     return mean_reward, std_reward
