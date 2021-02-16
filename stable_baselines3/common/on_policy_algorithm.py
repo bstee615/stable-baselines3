@@ -186,7 +186,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                     axis=1)
 
             new_obs, rewards, dones, infos = env.step(submit_actions)
-            if self.is_protagonist:
+            if not self.is_protagonist:
                 rewards = -rewards
 
             self.num_timesteps += env.num_envs
