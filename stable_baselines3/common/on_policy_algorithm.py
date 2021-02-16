@@ -182,7 +182,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                                                                                   other_actions], axis=1)
             elif self.adv_action_space:
                 submit_actions = np.concatenate(
-                    (np.array([np.empty(self.adv_action_space.shape)]), clipped_actions),
+                    (np.array([np.full(self.adv_action_space.shape, np.nan)]), clipped_actions),
                     axis=1)
 
             new_obs, rewards, dones, infos = env.step(submit_actions)

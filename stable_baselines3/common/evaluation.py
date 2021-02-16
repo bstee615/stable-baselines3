@@ -8,6 +8,16 @@ from stable_baselines3.common import base_class
 from stable_baselines3.common.vec_env import VecEnv
 
 
+def unwrap_adv_action_space(env):
+    if not hasattr(env, 'adv_action_space'):
+        if env.unwrapped != env:
+            return unwrap_adv_action_space(env.unwrapped)
+        elif hasattr(env, 'envs'):
+            return unwrap_adv_action_space(env.envs[0])
+    else:
+        return env.adv_action_space
+
+
 def evaluate_policy(
         model: "base_class.BaseAlgorithm",
         env: Union[gym.Env, VecEnv],
@@ -20,6 +30,7 @@ def evaluate_policy(
         warn: bool = True,
         max_episode_length: int = None,
         fps: int = None,
+        adversarial=False,
 ) -> Union[Tuple[float, float], Tuple[List[float], List[int]]]:
     """
     Runs policy for ``n_eval_episodes`` episodes and returns average reward.
@@ -85,7 +96,15 @@ def evaluate_policy(
         episode_length = 0
         while not done:
             action, state = model.predict(obs, state=state, deterministic=deterministic)
-            obs, reward, done, info = env.step(action)
+            if adversarial:
+                adv_action, _ = adversarial.predict(obs, state=state, deterministic=deterministic)
+                submit_actions = np.concatenate((adv_action, action), axis=1)
+            else:
+                adv_action_space = unwrap_adv_action_space(env)
+                submit_actions = np.concatenate(
+                    (np.array([np.full(adv_action_space.shape, np.nan)]), action),
+                    axis=1)
+            obs, reward, done, info = env.step(submit_actions)
             episode_reward += reward
             if callback is not None:
                 callback(locals(), globals())
