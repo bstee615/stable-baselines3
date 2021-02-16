@@ -70,6 +70,8 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             device: Union[th.device, str] = "auto",
             _init_setup_model: bool = True,
             supported_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
+            bridge=None,
+            is_protagonist=True,
     ):
 
         super(OnPolicyAlgorithm, self).__init__(
@@ -87,6 +89,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             seed=seed,
             tensorboard_log=tensorboard_log,
             supported_action_spaces=supported_action_spaces,
+            is_protagonist=is_protagonist
         )
 
         self.n_steps = n_steps
@@ -96,6 +99,8 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         self.vf_coef = vf_coef
         self.max_grad_norm = max_grad_norm
         self.rollout_buffer = None
+        self.bridge = bridge
+        self.is_protagonist = is_protagonist
 
         if _init_setup_model:
             self._setup_model()
@@ -164,7 +169,25 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             if isinstance(self.action_space, gym.spaces.Box):
                 clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
 
-            new_obs, rewards, dones, infos = env.step(clipped_actions)
+            # Tag on the other agent's action
+            submit_actions = clipped_actions
+            if self.bridge and self.bridge.other(self.is_protagonist):
+                other_actions = self.bridge.other(self.is_protagonist).predict(obs_tensor.cpu().numpy())[0]
+                # if isinstance(self.action_space, gym.spaces.Box):
+                #     clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
+                if len(other_actions.shape) < len(clipped_actions.shape):
+                    other_actions = other_actions.unsqueeze(dim=1)
+                submit_actions = np.concatenate(
+                    [other_actions, clipped_actions] if self.is_protagonist else [clipped_actions,
+                                                                                  other_actions], axis=1)
+            elif self.adv_action_space:
+                submit_actions = np.concatenate(
+                    (np.array([np.empty(self.adv_action_space.shape)]), clipped_actions),
+                    axis=1)
+
+            new_obs, rewards, dones, infos = env.step(submit_actions)
+            if self.is_protagonist:
+                rewards = -rewards
 
             self.num_timesteps += env.num_envs
 

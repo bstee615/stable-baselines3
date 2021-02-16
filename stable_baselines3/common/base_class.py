@@ -10,7 +10,6 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Type, Union
 import gym
 import numpy as np
 import torch as th
-
 from stable_baselines3.common import logger, utils
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList, ConvertCallback, EvalCallback
 from stable_baselines3.common.env_util import is_wrapped
@@ -18,7 +17,8 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.noise import ActionNoise
 from stable_baselines3.common.policies import BasePolicy, get_policy_from_name
 from stable_baselines3.common.preprocessing import is_image_space, is_image_space_channels_first
-from stable_baselines3.common.save_util import load_from_zip_file, recursive_getattr, recursive_setattr, save_to_zip_file
+from stable_baselines3.common.save_util import load_from_zip_file, recursive_getattr, recursive_setattr, \
+    save_to_zip_file
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from stable_baselines3.common.utils import (
     check_for_correct_spaces,
@@ -52,6 +52,16 @@ def maybe_make_env(env: Union[GymEnv, str, None], verbose: int) -> Optional[GymE
     return env
 
 
+def unwrap_adv_action_space(env):
+    if not hasattr(env, 'adv_action_space'):
+        if env.unwrapped != env:
+            return unwrap_adv_action_space(env.unwrapped)
+        elif hasattr(env, 'envs'):
+            return unwrap_adv_action_space(env.envs[0])
+    else:
+        return env.adv_action_space
+
+
 class BaseAlgorithm(ABC):
     """
     The base of RL algorithms
@@ -83,22 +93,23 @@ class BaseAlgorithm(ABC):
     """
 
     def __init__(
-        self,
-        policy: Type[BasePolicy],
-        env: Union[GymEnv, str, None],
-        policy_base: Type[BasePolicy],
-        learning_rate: Union[float, Schedule],
-        policy_kwargs: Dict[str, Any] = None,
-        tensorboard_log: Optional[str] = None,
-        verbose: int = 0,
-        device: Union[th.device, str] = "auto",
-        support_multi_env: bool = False,
-        create_eval_env: bool = False,
-        monitor_wrapper: bool = True,
-        seed: Optional[int] = None,
-        use_sde: bool = False,
-        sde_sample_freq: int = -1,
-        supported_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
+            self,
+            policy: Type[BasePolicy],
+            env: Union[GymEnv, str, None],
+            policy_base: Type[BasePolicy],
+            learning_rate: Union[float, Schedule],
+            policy_kwargs: Dict[str, Any] = None,
+            tensorboard_log: Optional[str] = None,
+            verbose: int = 0,
+            device: Union[th.device, str] = "auto",
+            support_multi_env: bool = False,
+            create_eval_env: bool = False,
+            monitor_wrapper: bool = True,
+            seed: Optional[int] = None,
+            use_sde: bool = False,
+            sde_sample_freq: int = -1,
+            supported_action_spaces: Optional[Tuple[gym.spaces.Space, ...]] = None,
+            is_protagonist=True,
     ):
 
         if isinstance(policy, str) and policy_base is not None:
@@ -145,6 +156,7 @@ class BaseAlgorithm(ABC):
         self.ep_success_buffer = None  # type: Optional[deque]
         # For logging
         self._n_updates = 0  # type: int
+        self.is_protagonist = is_protagonist
 
         # Create and wrap the env if needed
         if env is not None:
@@ -159,6 +171,9 @@ class BaseAlgorithm(ABC):
             self.action_space = env.action_space
             self.n_envs = env.num_envs
             self.env = env
+            if not self.is_protagonist:
+                self.action_space = unwrap_adv_action_space(env)
+            self.adv_action_space = unwrap_adv_action_space(env)
 
             if supported_action_spaces is not None:
                 assert isinstance(self.action_space, supported_action_spaces), (
@@ -172,7 +187,8 @@ class BaseAlgorithm(ABC):
                 )
 
             if self.use_sde and not isinstance(self.action_space, gym.spaces.Box):
-                raise ValueError("generalized State-Dependent Exploration (gSDE) can only be used with continuous actions.")
+                raise ValueError(
+                    "generalized State-Dependent Exploration (gSDE) can only be used with continuous actions.")
 
     @staticmethod
     def _wrap_env(env: GymEnv, verbose: int = 0, monitor_wrapper: bool = True) -> VecEnv:
@@ -196,9 +212,9 @@ class BaseAlgorithm(ABC):
             env = DummyVecEnv([lambda: env])
 
         if (
-            is_image_space(env.observation_space)
-            and not is_vecenv_wrapped(env, VecTransposeImage)
-            and not is_image_space_channels_first(env.observation_space)
+                is_image_space(env.observation_space)
+                and not is_vecenv_wrapped(env, VecTransposeImage)
+                and not is_image_space_channels_first(env.observation_space)
         ):
             if verbose >= 1:
                 print("Wrapping the env in a VecTransposeImage.")
@@ -296,12 +312,12 @@ class BaseAlgorithm(ABC):
         return state_dicts, []
 
     def _init_callback(
-        self,
-        callback: MaybeCallback,
-        eval_env: Optional[VecEnv] = None,
-        eval_freq: int = 10000,
-        n_eval_episodes: int = 5,
-        log_path: Optional[str] = None,
+            self,
+            callback: MaybeCallback,
+            eval_env: Optional[VecEnv] = None,
+            eval_freq: int = 10000,
+            n_eval_episodes: int = 5,
+            log_path: Optional[str] = None,
     ) -> BaseCallback:
         """
         :param callback: Callback(s) called at every step with state of the algorithm.
@@ -334,15 +350,15 @@ class BaseAlgorithm(ABC):
         return callback
 
     def _setup_learn(
-        self,
-        total_timesteps: int,
-        eval_env: Optional[GymEnv],
-        callback: MaybeCallback = None,
-        eval_freq: int = 10000,
-        n_eval_episodes: int = 5,
-        log_path: Optional[str] = None,
-        reset_num_timesteps: bool = True,
-        tb_log_name: str = "run",
+            self,
+            total_timesteps: int,
+            eval_env: Optional[GymEnv],
+            callback: MaybeCallback = None,
+            eval_freq: int = 10000,
+            n_eval_episodes: int = 5,
+            log_path: Optional[str] = None,
+            reset_num_timesteps: bool = True,
+            tb_log_name: str = "run",
     ) -> Tuple[int, BaseCallback]:
         """
         Initialize different variables needed for training.
@@ -450,16 +466,16 @@ class BaseAlgorithm(ABC):
 
     @abstractmethod
     def learn(
-        self,
-        total_timesteps: int,
-        callback: MaybeCallback = None,
-        log_interval: int = 100,
-        tb_log_name: str = "run",
-        eval_env: Optional[GymEnv] = None,
-        eval_freq: int = -1,
-        n_eval_episodes: int = 5,
-        eval_log_path: Optional[str] = None,
-        reset_num_timesteps: bool = True,
+            self,
+            total_timesteps: int,
+            callback: MaybeCallback = None,
+            log_interval: int = 100,
+            tb_log_name: str = "run",
+            eval_env: Optional[GymEnv] = None,
+            eval_freq: int = -1,
+            n_eval_episodes: int = 5,
+            eval_log_path: Optional[str] = None,
+            reset_num_timesteps: bool = True,
     ) -> "BaseAlgorithm":
         """
         Return a trained model.
@@ -477,11 +493,11 @@ class BaseAlgorithm(ABC):
         """
 
     def predict(
-        self,
-        observation: np.ndarray,
-        state: Optional[np.ndarray] = None,
-        mask: Optional[np.ndarray] = None,
-        deterministic: bool = False,
+            self,
+            observation: np.ndarray,
+            state: Optional[np.ndarray] = None,
+            mask: Optional[np.ndarray] = None,
+            deterministic: bool = False,
     ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         """
         Get the model's action(s) from an observation
@@ -512,10 +528,10 @@ class BaseAlgorithm(ABC):
             self.eval_env.seed(seed)
 
     def set_parameters(
-        self,
-        load_path_or_dict: Union[str, Dict[str, Dict]],
-        exact_match: bool = True,
-        device: Union[th.device, str] = "auto",
+            self,
+            load_path_or_dict: Union[str, Dict[str, Dict]],
+            exact_match: bool = True,
+            device: Union[th.device, str] = "auto",
     ) -> None:
         """
         Load parameters from a given zip-file or a nested dictionary containing parameters for
@@ -581,11 +597,11 @@ class BaseAlgorithm(ABC):
 
     @classmethod
     def load(
-        cls,
-        path: Union[str, pathlib.Path, io.BufferedIOBase],
-        env: Optional[GymEnv] = None,
-        device: Union[th.device, str] = "auto",
-        **kwargs,
+            cls,
+            path: Union[str, pathlib.Path, io.BufferedIOBase],
+            env: Optional[GymEnv] = None,
+            device: Union[th.device, str] = "auto",
+            **kwargs,
     ) -> "BaseAlgorithm":
         """
         Load the model from a zip-file
@@ -666,10 +682,10 @@ class BaseAlgorithm(ABC):
         return params
 
     def save(
-        self,
-        path: Union[str, pathlib.Path, io.BufferedIOBase],
-        exclude: Optional[Iterable[str]] = None,
-        include: Optional[Iterable[str]] = None,
+            self,
+            path: Union[str, pathlib.Path, io.BufferedIOBase],
+            exclude: Optional[Iterable[str]] = None,
+            include: Optional[Iterable[str]] = None,
     ) -> None:
         """
         Save all the attributes of the object and the model parameters in a zip-file.
